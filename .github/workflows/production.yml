@@ -1,0 +1,39 @@
+name: OTTAM Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      episode_id:
+        description: Episode ID to run/resume
+        required: false
+        type: string
+  schedule:
+    - cron: '30 20 * * *' # 02:00 Asia/Kolkata next day; adjust before production go-live
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ottam-production
+  cancel-in-progress: false
+
+jobs:
+  production:
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Validate runtime
+        run: |
+          python --version
+          ffmpeg -version | head -n 1
+      - name: Pipeline placeholder
+        env:
+          EPISODE_ID: ${{ inputs.episode_id }}
+        run: |
+          echo "Foundation ready. Provider integrations intentionally remain disabled until secrets/contracts are configured."
