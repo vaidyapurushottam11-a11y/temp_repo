@@ -1,0 +1,26 @@
+channel:
+  name: OTTAM
+  format: long_form
+  target_runtime_minutes: [7, 8]
+  language: en
+  resolution: 1920x1080
+  aspect_ratio: '16:9'
+  fps: 30
+
+production:
+  target_ready_buffer: 5
+  allow_human_approval_state: false
+  terminal_states: [PUBLISHED, READY_TO_PUBLISH, RETRY_SCHEDULED, QUARANTINED]
+  ffmpeg_is_primary_renderer: true
+  fcpxml_fallback_only: true
+
+timing:
+  narration_is_master_timeline: true
+  stretch_narration: false
+  hard_code_scene_count: false
+
+recovery:
+  max_stage_attempts: 4
+  max_content_repairs: 3
+  quarantine_on_exhaustion: true
+  deterministic_before_ai: true
