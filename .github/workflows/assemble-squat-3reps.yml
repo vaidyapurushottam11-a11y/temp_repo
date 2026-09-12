@@ -1,0 +1,40 @@
+name: Assemble Squat 3 Reps
+
+on:
+  push:
+    paths:
+      - '.github/workflows/assemble-squat-3reps.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Download source clip
+        env:
+          VIDEO_URL: 'https://pikaso.cdnpk.net/private/production/5432286639/ec2a5f3b-baf1-4ca6-be12-8988f412a38c-0.mp4?token=exp=1789516800~hmac=22d3c3b353ba59ac7a98b1110185c8f696b515ec0a4dcd492cd1d6d3d1d958d3'
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 "$VIDEO_URL" -o squat.mp4
+
+      - name: Build 11 second 3-rep reel
+        run: |
+          set -euo pipefail
+          ffmpeg -y -i squat.mp4 -filter_complex "[0:v]setpts=PTS/1.45,fps=30[v1];[v1]split=3[a][b][c];[a][b][c]concat=n=3:v=1:a=0,trim=duration=10.35,setpts=PTS-STARTPTS[v]" -map "[v]" -an -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -movflags +faststart squat_technique_3reps_10s.mp4
+
+      - name: Validate
+        run: ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 squat_technique_3reps_10s.mp4
+
+      - name: Upload final MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: squat_technique_3reps_10s
+          path: squat_technique_3reps_10s.mp4
+          retention-days: 7
