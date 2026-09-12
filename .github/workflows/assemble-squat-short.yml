@@ -1,0 +1,60 @@
+name: Assemble Squat Short
+
+on:
+  push:
+    paths:
+      - '.github/workflows/assemble-squat-short.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install FFmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Download approved assets
+        env:
+          MASTER_URL: 'https://pikaso.cdnpk.net/private/production/5432233767/render.png?token=exp=1789516800~hmac=c95732a5f135dbb9a0b8945beb18f86580ced45fd0674e235aa848fc065c6bc9'
+          MOTION_URL: 'https://pikaso.cdnpk.net/private/production/5432286639/ec2a5f3b-baf1-4ca6-be12-8988f412a38c-0.mp4?token=exp=1789516800~hmac=22d3c3b353ba59ac7a98b1110185c8f696b515ec0a4dcd492cd1d6d3d1d958d3'
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 "$MASTER_URL" -o master.png
+          curl -L --fail --retry 3 "$MOTION_URL" -o motion.mp4
+          ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 motion.mp4
+
+      - name: Build 11-second reel
+        run: |
+          set -euo pipefail
+          # 0.0-2.5s: static infographic hook
+          ffmpeg -y -loop 1 -i master.png -t 2.5 -r 30 \
+            -vf "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,format=yuv420p" \
+            -c:v libx264 -preset medium -crf 18 -an intro.mp4
+
+          # Normalize the 5s Kling clip to the same delivery format.
+          ffmpeg -y -i motion.mp4 -t 5 \
+            -vf "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,fps=30,format=yuv420p" \
+            -c:v libx264 -preset medium -crf 18 -an motion_norm.mp4
+
+          # 7.5-11.0s: hold the corrected infographic so the mistake/fix panel is readable.
+          ffmpeg -y -loop 1 -i master.png -t 3.5 -r 30 \
+            -vf "scale=720:1280:force_original_aspect_ratio=decrease,pad=720:1280:(ow-iw)/2:(oh-ih)/2,format=yuv420p" \
+            -c:v libx264 -preset medium -crf 18 -an outro.mp4
+
+          printf "file 'intro.mp4'\nfile 'motion_norm.mp4'\nfile 'outro.mp4'\n" > concat.txt
+          ffmpeg -y -f concat -safe 0 -i concat.txt -c copy squat_technique_11s.mp4
+          ffmpeg -y -i squat_technique_11s.mp4 -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -movflags +faststart -an squat_technique_11s_final.mp4
+
+      - name: Validate
+        run: ffprobe -v error -show_entries format=duration -show_streams squat_technique_11s_final.mp4
+
+      - name: Upload final MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: squat_technique_11s_final
+          path: squat_technique_11s_final.mp4
+          if-no-files-found: error
+          retention-days: 7
