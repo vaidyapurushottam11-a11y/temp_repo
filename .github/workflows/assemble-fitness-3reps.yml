@@ -1,0 +1,59 @@
+name: Assemble Fitness 3 Reps
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: 'Source motion MP4 URL'
+        required: true
+        type: string
+      output_name:
+        description: 'Output filename without extension'
+        required: false
+        default: 'fitness_3reps_11s'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Download source clip
+        env:
+          VIDEO_URL: ${{ inputs.video_url }}
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 "$VIDEO_URL" -o source.mp4
+          ffprobe -v error -show_entries format=duration -of default=nw=1:nk=1 source.mp4
+
+      - name: Build 3-rep 11.45 second reel
+        env:
+          OUT: ${{ inputs.output_name }}
+        run: |
+          set -euo pipefail
+          ffmpeg -y -i source.mp4 \
+            -filter_complex "[0:v]setpts=PTS/1.32,fps=30,scale=1080:1920:flags=lanczos[v1];[v1]split=3[a][b][c];[a][b][c]concat=n=3:v=1:a=0,trim=duration=11.45,setpts=PTS-STARTPTS[v]" \
+            -map "[v]" -an \
+            -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p \
+            -movflags +faststart "${OUT}.mp4"
+
+      - name: Validate output
+        env:
+          OUT: ${{ inputs.output_name }}
+        run: |
+          ffprobe -v error -show_entries format=duration:stream=width,height,r_frame_rate,pix_fmt -of default=nw=1 "${OUT}.mp4"
+
+      - name: Upload final MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.output_name }}
+          path: ${{ inputs.output_name }}.mp4
+          if-no-files-found: error
+          retention-days: 7
