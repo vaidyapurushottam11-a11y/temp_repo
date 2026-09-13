@@ -1,0 +1,45 @@
+name: Assemble RDL 3 Reps
+
+on:
+  workflow_dispatch:
+    inputs:
+      video_url:
+        description: 'Magnific RDL source MP4 signed URL'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Download source clip
+        env:
+          VIDEO_URL: ${{ inputs.video_url }}
+        run: |
+          set -euo pipefail
+          curl -L --fail --retry 3 "$VIDEO_URL" -o rdl.mp4
+          ffprobe -v error -show_streams -show_format rdl.mp4
+
+      - name: Build 11.4 second 3-rep reel
+        run: |
+          set -euo pipefail
+          ffmpeg -y -i rdl.mp4 -filter_complex "[0:v]setpts=PTS/1.32,fps=30,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2[v1];[v1]split=3[a][b][c];[a][b][c]concat=n=3:v=1:a=0,trim=duration=11.4,setpts=PTS-STARTPTS[v]" -map "[v]" -an -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -movflags +faststart rdl_technique_3reps_11s.mp4
+
+      - name: Validate output
+        run: |
+          ffprobe -v error -show_entries format=duration -show_entries stream=codec_name,width,height,r_frame_rate,pix_fmt -of default=nw=1 rdl_technique_3reps_11s.mp4
+
+      - name: Upload final MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: rdl_technique_3reps_11s
+          path: rdl_technique_3reps_11s.mp4
+          retention-days: 7
