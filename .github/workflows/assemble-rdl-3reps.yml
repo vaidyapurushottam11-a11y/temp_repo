@@ -1,12 +1,9 @@
 name: Assemble RDL 3 Reps
 
 on:
-  workflow_dispatch:
-    inputs:
-      video_url:
-        description: 'Magnific RDL source MP4 signed URL'
-        required: true
-        type: string
+  push:
+    paths:
+      - '.github/workflows/assemble-rdl-3reps.yml'
 
 permissions:
   contents: read
@@ -22,7 +19,7 @@ jobs:
 
       - name: Download source clip
         env:
-          VIDEO_URL: ${{ inputs.video_url }}
+          VIDEO_URL: 'https://pikaso.cdnpk.net/private/production/5435792119/dd833db7-5d32-4682-a508-05521f46390c-0.mp4?token=exp=1789516800~hmac=4438c7d88e2974661eb94413a2dd9b5aca7724e2ad43adf468bd45a05b45381c'
         run: |
           set -euo pipefail
           curl -L --fail --retry 3 "$VIDEO_URL" -o rdl.mp4
