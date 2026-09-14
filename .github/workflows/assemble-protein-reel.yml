@@ -1,0 +1,107 @@
+name: Assemble Protein Reel 03
+
+on:
+  push:
+    paths:
+      - '.github/workflows/assemble-protein-reel.yml'
+      - 'reel3/protein_master.jpg'
+      - 'reel3/protein_reel_trigger.txt'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install FFmpeg
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+
+      - name: Validate source
+        run: |
+          set -euo pipefail
+          test -f reel3/protein_master.jpg
+          ffprobe -v error -show_entries stream=width,height -of default=nw=1 reel3/protein_master.jpg
+
+      - name: Build animated educational segments
+        run: |
+          set -euo pipefail
+          SRC='reel3/protein_master.jpg'
+
+          make_full () {
+            out="$1"; dur="$2"
+            ffmpeg -y -loop 1 -t "$dur" -i "$SRC" \
+              -vf "scale=1080:1920:flags=lanczos,setsar=1,fps=30" \
+              -an -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p "$out"
+          }
+
+          make_card () {
+            out="$1"; x="$2"; y="$3"; w="$4"; h="$5"; dur="$6"
+            ffmpeg -y -loop 1 -t "$dur" -i "$SRC" \
+              -filter_complex "[0:v]scale=1080:1920:flags=lanczos,boxblur=18:9,eq=brightness=-0.08:saturation=0.65[bg];[0:v]crop=${w}:${h}:${x}:${y},scale=980:-1:flags=lanczos,pad=1020:ih+40:20:20:color=0xfffbf3[card];[bg][card]overlay=(W-w)/2:(H-h)/2:format=auto,setsar=1,fps=30[out]" \
+              -map "[out]" -an -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p "$out"
+          }
+
+          # 0. Full infographic hook.
+          make_full seg00.mp4 1.10
+
+          # 1. Daily target.
+          make_card seg01.mp4 22 520 438 235 1.45
+
+          # 2. Per-meal target.
+          make_card seg02.mp4 474 520 436 235 1.45
+
+          # 3. Distribution / timing.
+          make_card seg03.mp4 22 770 438 252 1.30
+
+          # 4. Cutting target.
+          make_card seg04.mp4 474 770 436 252 1.50
+
+          # 5. Priority hierarchy.
+          make_card seg05.mp4 22 1038 438 180 1.45
+
+          # 6. Worked 80 kg example.
+          make_card seg06.mp4 22 1230 886 316 1.70
+
+          # 7. Clean screenshot/save hold.
+          make_full seg07.mp4 1.35
+
+      - name: Assemble final 11-second reel
+        run: |
+          set -euo pipefail
+          cat > concat.txt <<'EOF'
+          file 'seg00.mp4'
+          file 'seg01.mp4'
+          file 'seg02.mp4'
+          file 'seg03.mp4'
+          file 'seg04.mp4'
+          file 'seg05.mp4'
+          file 'seg06.mp4'
+          file 'seg07.mp4'
+          EOF
+
+          ffmpeg -y -f concat -safe 0 -i concat.txt \
+            -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p \
+            -r 30 -an -movflags +faststart \
+            built_capable_reel03_protein_final.mp4
+
+      - name: Validate final output
+        run: |
+          set -euo pipefail
+          ffprobe -v error \
+            -show_entries format=duration,size:stream=codec_name,width,height,r_frame_rate \
+            -of default=nw=1 built_capable_reel03_protein_final.mp4
+
+      - name: Upload ready-to-post MP4
+        uses: actions/upload-artifact@v4
+        with:
+          name: built_capable_reel03_protein_final
+          path: built_capable_reel03_protein_final.mp4
+          if-no-files-found: error
+          retention-days: 7
