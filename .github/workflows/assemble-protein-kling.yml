@@ -3,7 +3,8 @@ name: Assemble Protein Reel 03 from Kling Motion
 on:
   push:
     paths:
-      - '.github/workflows/assemble-protein-kling.yml'
+      - 'reel3/protein_kling_motion_5s.mp4'
+  workflow_dispatch:
 
 concurrency:
   group: protein-reel03-kling
@@ -16,31 +17,38 @@ jobs:
   assemble:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
       - name: Install FFmpeg
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq ffmpeg
 
-      - name: Download approved Kling source
-        env:
-          VIDEO_URL: 'https://pikaso.cdnpk.net/private/production/5440005726/19054cd3-266b-45e1-857e-41e23f175210-0.mp4?token=exp=1789776000~hmac=7e0429949004a1197d2c72a1b71a1ed9a5157d495f2526fa1c4e9faab5570428'
+      - name: Validate Kling source
         run: |
           set -euo pipefail
-          curl -L --fail --retry 3 "$VIDEO_URL" -o protein_kling.mp4
-          ffprobe -v error -show_entries format=duration:stream=codec_name,width,height,r_frame_rate -of default=nw=1 protein_kling.mp4
+          test -f reel3/protein_kling_motion_5s.mp4
+          ffprobe -v error \
+            -show_entries format=duration:stream=codec_name,width,height,r_frame_rate \
+            -of default=nw=1 reel3/protein_kling_motion_5s.mp4
 
-      - name: Build 10-second Reel from Kling motion
+      - name: Build 10-second Kling-motion Reel
         run: |
           set -euo pipefail
-          ffmpeg -hide_banner -loglevel error -y -i protein_kling.mp4 \
-            -filter_complex "[0:v]fps=30,scale=1080:1920:force_original_aspect_ratio=decrease,pad=1080:1920:(ow-iw)/2:(oh-ih)/2,split=2[a][b];[a]setpts=PTS-STARTPTS[a1];[b]setpts=PTS-STARTPTS[b1];[a1][b1]concat=n=2:v=1:a=0,trim=duration=10.0,setpts=PTS-STARTPTS[v]" \
-            -map "[v]" -an -c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -movflags +faststart \
+          ffmpeg -hide_banner -loglevel error -y \
+            -i reel3/protein_kling_motion_5s.mp4 \
+            -filter_complex "[0:v]scale=1080:1920:flags=lanczos,fps=30,split=2[a][b];[a]setpts=PTS-STARTPTS[a1];[b]setpts=PTS-STARTPTS[b1];[a1][b1]concat=n=2:v=1:a=0,trim=duration=10.00,setpts=PTS-STARTPTS,format=yuv420p[v]" \
+            -map '[v]' -an \
+            -c:v libx264 -preset veryfast -crf 18 -movflags +faststart \
             built_capable_reel03_protein_kling_10s.mp4
 
       - name: Validate final output
         run: |
           set -euo pipefail
-          ffprobe -v error -show_entries format=duration,size:stream=codec_name,width,height,r_frame_rate,pix_fmt -of default=nw=1 built_capable_reel03_protein_kling_10s.mp4
+          ffprobe -v error \
+            -show_entries format=duration,size:stream=codec_name,width,height,r_frame_rate,pix_fmt \
+            -of default=nw=1 built_capable_reel03_protein_kling_10s.mp4
 
       - name: Upload ready-to-post MP4
         uses: actions/upload-artifact@v4
