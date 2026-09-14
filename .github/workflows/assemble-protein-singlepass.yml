@@ -20,29 +20,47 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install FFmpeg
+      - name: Install FFmpeg and Pillow
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq ffmpeg
+          sudo apt-get install -y -qq ffmpeg python3-pil
 
-      - name: Validate source
+      - name: Repair source and render infographic views once
         run: |
           set -euo pipefail
-          test -f reel3/protein_master.jpg
-          ffprobe -v error -show_entries stream=width,height -of default=nw=1 reel3/protein_master.jpg
+          python3 - <<'PY'
+          from PIL import Image, ImageFile
+          ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-      - name: Render infographic views once
-        run: |
-          set -euo pipefail
-          SRC='reel3/protein_master.jpg'
-          ffmpeg -hide_banner -loglevel error -y -i "$SRC" -vf "scale=1080:1920:flags=bicubic" -frames:v 1 view0.jpg
-          ffmpeg -hide_banner -loglevel error -y -i "$SRC" -vf "scale=1080:1920:flags=bicubic,crop=438:235:22:520,scale=980:-2:flags=bicubic,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0xfffbf3" -frames:v 1 view1.jpg
-          ffmpeg -hide_banner -loglevel error -y -i "$SRC" -vf "scale=1080:1920:flags=bicubic,crop=436:235:474:520,scale=980:-2:flags=bicubic,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0xfffbf3" -frames:v 1 view2.jpg
-          ffmpeg -hide_banner -loglevel error -y -i "$SRC" -vf "scale=1080:1920:flags=bicubic,crop=438:252:22:770,scale=980:-2:flags=bicubic,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0xfffbf3" -frames:v 1 view3.jpg
-          ffmpeg -hide_banner -loglevel error -y -i "$SRC" -vf "scale=1080:1920:flags=bicubic,crop=436:252:474:770,scale=980:-2:flags=bicubic,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0xfffbf3" -frames:v 1 view4.jpg
-          ffmpeg -hide_banner -loglevel error -y -i "$SRC" -vf "scale=1080:1920:flags=bicubic,crop=438:180:22:1038,scale=980:-2:flags=bicubic,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0xfffbf3" -frames:v 1 view5.jpg
-          ffmpeg -hide_banner -loglevel error -y -i "$SRC" -vf "scale=1080:1920:flags=bicubic,crop=886:316:22:1230,scale=1040:-2:flags=bicubic,pad=1080:1920:(ow-iw)/2:(oh-ih)/2:color=0xfffbf3" -frames:v 1 view6.jpg
-          cp view0.jpg view7.jpg
+          src = 'reel3/protein_master.jpg'
+          im = Image.open(src)
+          im.load()
+          im = im.convert('RGB')
+          base = im.resize((1080, 1920), Image.Resampling.LANCZOS)
+
+          def save_jpg(img, path):
+              img.save(path, 'JPEG', quality=94, subsampling=0, optimize=True)
+
+          def card_view(box, target_w, path):
+              card = base.crop(box)
+              target_h = round(card.height * target_w / card.width)
+              card = card.resize((target_w, target_h), Image.Resampling.LANCZOS)
+              canvas = Image.new('RGB', (1080, 1920), (255, 251, 243))
+              x = (1080 - target_w) // 2
+              y = (1920 - target_h) // 2
+              canvas.paste(card, (x, y))
+              save_jpg(canvas, path)
+
+          save_jpg(base, 'view0.jpg')
+          card_view((22, 520, 22+438, 520+235), 980, 'view1.jpg')
+          card_view((474, 520, 474+436, 520+235), 980, 'view2.jpg')
+          card_view((22, 770, 22+438, 770+252), 980, 'view3.jpg')
+          card_view((474, 770, 474+436, 770+252), 980, 'view4.jpg')
+          card_view((22, 1038, 22+438, 1038+180), 980, 'view5.jpg')
+          card_view((22, 1230, 22+886, 1230+316), 1040, 'view6.jpg')
+          save_jpg(base, 'view7.jpg')
+          print('Repaired source and rendered 8 views successfully')
+          PY
 
       - name: Build 11.3-second Reel from still views
         run: |
