@@ -1,8 +1,7 @@
-name: Build Reel 03 Protein Infographic
+name: Build Reel 03 Protein Infographic (legacy manual)
 
 on:
-  push:
-    branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -11,68 +10,5 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Install FFmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
-
-      - name: Build instructional segments
-        run: |
-          set -euo pipefail
-          MASTER="reel3/protein_master.jpg"
-          COMMON="-c:v libx264 -preset medium -crf 18 -pix_fmt yuv420p -r 30 -an"
-
-          # 0.0–1.4s — opening full frame with clear push-in toward headline/athlete.
-          ffmpeg -y -loop 1 -framerate 30 -i "$MASTER" -t 1.4 \
-            -vf "scale=1080:1920:flags=lanczos,zoompan=z='min(zoom+0.0013,1.055)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30,format=yuv420p" \
-            $COMMON seg0.mp4
-
-          # 1.4–3.2s — DAILY TARGET: ~1.6 g/kg/day.
-          ffmpeg -y -loop 1 -framerate 30 -i "$MASTER" -t 1.8 \
-            -vf "scale=1728:3072:flags=lanczos,crop=1080:1920:0:216,zoompan=z='min(zoom+0.00075,1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30,format=yuv420p" \
-            $COMMON seg1.mp4
-
-          # 3.2–5.0s — PER-MEAL TARGET: 20–40 g.
-          ffmpeg -y -loop 1 -framerate 30 -i "$MASTER" -t 1.8 \
-            -vf "scale=1728:3072:flags=lanczos,crop=1080:1920:648:216,zoompan=z='min(zoom+0.00075,1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30,format=yuv420p" \
-            $COMMON seg2.mp4
-
-          # 5.0–6.8s — CUTTING TARGET: ~1.8–2.2 g/kg/day.
-          ffmpeg -y -loop 1 -framerate 30 -i "$MASTER" -t 1.8 \
-            -vf "scale=1728:3072:flags=lanczos,crop=1080:1920:648:660,zoompan=z='min(zoom+0.00075,1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30,format=yuv420p" \
-            $COMMON seg3.mp4
-
-          # 6.8–8.6s — PRIORITY: Daily total > per meal > distribution > timing.
-          ffmpeg -y -loop 1 -framerate 30 -i "$MASTER" -t 1.8 \
-            -vf "scale=1728:3072:flags=lanczos,crop=1080:1920:0:1085,zoompan=z='min(zoom+0.00075,1.04)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30,format=yuv420p" \
-            $COMMON seg4.mp4
-
-          # 8.6–10.3s — 80 KG EXAMPLE.
-          ffmpeg -y -loop 1 -framerate 30 -i "$MASTER" -t 1.7 \
-            -vf "scale=1728:3072:flags=lanczos,crop=1080:1920:300:1152,zoompan=z='min(zoom+0.0007,1.035)':x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':d=1:s=1080x1920:fps=30,format=yuv420p" \
-            $COMMON seg5.mp4
-
-          # 10.3–11.8s — clean full-frame save/screenshot hold.
-          ffmpeg -y -loop 1 -framerate 30 -i "$MASTER" -t 1.5 \
-            -vf "scale=1080:1920:flags=lanczos,format=yuv420p" \
-            $COMMON seg6.mp4
-
-      - name: Concatenate final Reel
-        run: |
-          set -euo pipefail
-          printf "file 'seg0.mp4'\nfile 'seg1.mp4'\nfile 'seg2.mp4'\nfile 'seg3.mp4'\nfile 'seg4.mp4'\nfile 'seg5.mp4'\nfile 'seg6.mp4'\n" > concat.txt
-          ffmpeg -y -f concat -safe 0 -i concat.txt -c copy reel3_protein_final.mp4
-          ffmpeg -y -i reel3_protein_final.mp4 -c copy -movflags +faststart reel3_protein_ready.mp4
-
-      - name: Validate
-        run: |
-          ffprobe -v error -show_entries stream=codec_name,width,height,r_frame_rate,pix_fmt -show_entries format=duration,size -of default=nw=1 reel3_protein_ready.mp4
-
-      - name: Upload ready-to-post MP4
-        uses: actions/upload-artifact@v4
-        with:
-          name: reel3-protein-ready
-          path: reel3_protein_ready.mp4
-          retention-days: 7
-          if-no-files-found: error
+      - name: Notice
+        run: echo "Legacy Reel 03 workflow disabled from automatic push builds. Use assemble-protein-reel.yml."
